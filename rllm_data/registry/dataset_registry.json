@@ -1,0 +1,24 @@
+{
+  "frozenlake": {
+    "train": "datasets/frozenlake/train.parquet",
+    "test": "datasets/frozenlake/test.parquet"
+  },
+  "sokoban": {
+    "train": "datasets/sokoban/train.parquet",
+    "test": "datasets/sokoban/test.parquet"
+  },
+  "operator": {
+    "train": "datasets/operator/train.parquet",
+    "test": "datasets/operator/test.parquet"
+  },
+  "alfworld": {
+    "train": "datasets/alfworld/train.parquet",
+    "valid_seen": "datasets/alfworld/valid_seen.parquet"
+  },
+  "hotpotqa": {
+    "train": "datasets/hotpotqa/train.parquet"
+  },
+  "hotpotqa-small": {
+    "test": "datasets/hotpotqa-small/test.parquet"
+  }
+}
