@@ -119,8 +119,38 @@ def default_feedback_fn(task: dict[str, Any], trajectory: Trajectory) -> str:
 class ErlSokobanStateBuilder:
     """Compose prompt updater context from Sokoban attempts."""
 
-    def __init__(self, max_examples: int = 8):
+    CANONICAL_SYMBOL_BY_KEY = {
+        "wall": "#",
+        "floor": " ",
+        "goal": ".",
+        "box": "$",
+        "box_on_goal": "*",
+        "player": "@",
+        "player_on_goal": "+",
+    }
+    CANONICAL_KEY_BY_SYMBOL = {value: key for key, value in CANONICAL_SYMBOL_BY_KEY.items()}
+
+    def __init__(self, max_examples: int = 8, symbol_map: dict[str, str] | None = None):
         self.max_examples = max_examples
+        self.symbol_map = {
+            key: str((symbol_map or {}).get(key, value))
+            for key, value in self.CANONICAL_SYMBOL_BY_KEY.items()
+        }
+
+    def _render_layout(self, layout_rows: Sequence[str], symbol_override: dict[str, Any] | None = None) -> str:
+        active_symbol_map = self.symbol_map.copy()
+        if symbol_override:
+            active_symbol_map.update({key: str(value) for key, value in symbol_override.items() if value is not None})
+
+        rendered_rows: list[str] = []
+        for row in layout_rows:
+            rendered_rows.append(
+                "".join(
+                    active_symbol_map.get(self.CANONICAL_KEY_BY_SYMBOL.get(ch, ""), ch)
+                    for ch in str(row)
+                )
+            )
+        return "\n".join(rendered_rows)
 
     def __call__(self, initial_prompt: str, batch: Sequence[dict[str, Any]], attempts: Sequence[dict[str, Any]], metrics: dict[str, float]) -> str:
         lines: list[str] = [
@@ -143,7 +173,7 @@ class ErlSokobanStateBuilder:
             lines.append(f"Layout: {layout_name} | max_steps: {max_steps}")
             layout_rows = task.get("layout")
             if layout_rows:
-                rendered_layout = "\n".join(str(row) for row in layout_rows)
+                rendered_layout = self._render_layout(layout_rows, task.get("symbol_map"))
                 lines.append(rendered_layout)
                 lines.append("")
 
@@ -237,15 +267,17 @@ class ErlSokobanWorkflow(Workflow):
     ) -> None:
         super().__init__(rollout_engine, executor, **kwargs)
         self.initial_system_prompt = initial_system_prompt.strip()
+        self.agent_args_template = dict(agent_args or {})
+        self.env_args = dict(env_args or {})
         self.feedback_fn = feedback_fn or default_feedback_fn
-        self.state_builder = state_builder or ErlSokobanStateBuilder()
+        self.state_builder = state_builder or ErlSokobanStateBuilder(
+            symbol_map=self.env_args.get("symbol_map") or self.agent_args_template.get("symbol_map")
+        )
         self.batch_size = max(1, batch_size)
         self.max_concurrency = max(1, max_concurrency)
         self.updater_engine_name = (updater_engine_name or "openai").lower()
         self.agent_class = agent_class
         self.env_class = env_class
-        self.agent_args_template = dict(agent_args or {})
-        self.env_args = dict(env_args or {})
         self.solver_engine_name = solver_engine_name
         self.workflow_config = workflow_config
         self.solver_tokenizer = solver_tokenizer
